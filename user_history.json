@@ -1,0 +1,17 @@
+[
+  {
+    "timestamp": "2026-07-15 12:12:57",
+    "file_name": "data/test_handwriting.txt",
+    "image_name": "test_handwriting.jpg",
+    "overall_score": 63.8,
+    "spelling": 44,
+    "grammar": 70.0,
+    "readability": 57.9
+  },
+  {
+    "timestamp": "2026-07-15 12:26:37",
+    "file_name": "data/test_handwriting.txt",
+    "image_name": "test_handwriting.jpg",
+    "overall_score": 63.8
+  }
+]

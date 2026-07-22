@@ -1,0 +1,33 @@
+SENSE-SCRIPT ANALYSIS REPORT
+========================================
+
+Image: student_work.jpg
+Time: 2026-07-17 14:32:29
+
+Original Text:
+This is a good sample with correct spelling and grammer.
+This is an example of bad handwriting with grammar mistaks and spelling errorrs. The student writed this sentence very badly without proper punctuation. I dont like this projet because it is too difficult and the handwriting is unclean.
+
+SCORES:
+  Spelling: 68/100
+  Grammar: 82.5/100
+  Readability: 57.2/100
+  Structure: 90/100
+  Overall: 74.6/100
+
+Suggestions:
+- Offset 48, length 7, Rule ID: MORFOLOGIK_RULE_EN_US
+Message: Possible spelling mistake found.
+Sugges...
+- Offset 108, length 7, Rule ID: MORFOLOGIK_RULE_EN_US
+Message: Possible spelling mistake found.
+Sugge...
+- Offset 129, length 7, Rule ID: MORFOLOGIK_RULE_EN_US
+Message: Possible spelling mistake found.
+Sugge...
+- Offset 150, length 6, Rule ID: WROTE
+Message: The past tense of the verb “write” is “wrote”.
+Suggest...
+- Offset 212, length 4, Rule ID: EN_CONTRACTION_SPELLING
+Message: Possible spelling mistake found.
+Sug...

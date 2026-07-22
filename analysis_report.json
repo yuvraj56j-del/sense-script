@@ -1,0 +1,29 @@
+{
+    "timestamp": "2026-07-17 14:32:29",
+    "image_name": "student_work.jpg",
+    "original_text": "This is a good sample with correct spelling and grammer.\nThis is an example of bad handwriting with grammar mistaks and spelling errorrs. The student writed this sentence very badly without proper punctuation. I dont like this projet because it is too difficult and the handwriting is unclean.",
+    "scores": {
+        "spelling": 68,
+        "grammar": 82.5,
+        "readability": 57.2,
+        "structure": 90,
+        "overall": 74.6
+    },
+    "suggestions": [
+        "Offset 48, length 7, Rule ID: MORFOLOGIK_RULE_EN_US\nMessage: Possible spelling mistake found.\nSuggestion: grammar; grimmer; rammer; crammer; g rammer\n...a good sample with correct spelling and grammer. This is an example of bad handwriting ...\n                                           ^^^^^^^",
+        "Offset 108, length 7, Rule ID: MORFOLOGIK_RULE_EN_US\nMessage: Possible spelling mistake found.\nSuggestion: mistake; mistakes\n...example of bad handwriting with grammar mistaks and spelling errorrs. The student write...\n                                           ^^^^^^^",
+        "Offset 129, length 7, Rule ID: MORFOLOGIK_RULE_EN_US\nMessage: Possible spelling mistake found.\nSuggestion: errors\n...iting with grammar mistaks and spelling errorrs. The student writed this sentence very ...\n                                           ^^^^^^^",
+        "Offset 150, length 6, Rule ID: WROTE\nMessage: The past tense of the verb \u201cwrite\u201d is \u201cwrote\u201d.\nSuggestion: wrote\n...staks and spelling errorrs. The student writed this sentence very badly without proper...\n                                           ^^^^^^",
+        "Offset 212, length 4, Rule ID: EN_CONTRACTION_SPELLING\nMessage: Possible spelling mistake found.\nSuggestion: don't\n...ery badly without proper punctuation. I dont like this projet because it is too diff...\n                                           ^^^^"
+    ],
+    "misspelled_words": [
+        "mistaks",
+        "projet",
+        "grammer.",
+        "writed",
+        "dont",
+        "errorrs.",
+        "punctuation.",
+        "unclean."
+    ]
+}
