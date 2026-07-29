@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Handwriting Analyzer & OCR</title>
+    <!-- Tesseract.js for OCR -->
+    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
+    <style>
+        /* ---------- RESET & VARIABLES ---------- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        :root {
+            --bg: #0f172a;
+            --surface: rgba(15, 23, 42, 0.88);
+            --surface-solid: #1e293b;
+            --primary-grad: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+            --accent-grad: linear-gradient(135deg, #f59e0b 0%, #10b981 100%);
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --text: #f8fafc;
+            --text-light: #cbd5e1;
+            --border: rgba(255, 255, 255, 0.15);
+            --radius: 20px;
+            --shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
+            --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            font-family: var(--font);
+            background: 
+                /* Dark overlay for contrast */
+                linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.9)),
+                /* Background photo of students studying/learning */
+                url('https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=1920&auto=format&fit=crop') no-repeat center center fixed;
+            background-size: cover;
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 3rem 1rem;
+            overflow-x: hidden;
+        }
+
+        h1 {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            background: var(--primary-grad);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+        }
+        h1 span {
+            background: var(--primary-grad);
+            -webkit-text-fill-color: #fff;
+            font-size: 0.85rem;
+            padding: 0.25rem 0.85rem;
+            border-radius: 999px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 12px rgba(236, 72, 153, 0.3);
+        }
+        .subtitle {
+            color: #e2e8f0;
+            margin-bottom: 2rem;
+            font-size: 1.05rem;
+            text-align: center;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+        }
+
+        /* ---------- CARD ---------- */
+        .card {
+            background: var(--surface);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 2.5rem;
+            max-width: 800px;
+            width: 100%;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        /* ---------- CHARACTERS BANNER ---------- */
+        .character-squad {
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-end;
+            margin-bottom: -10px;
+            position: relative;
+            z-index: 10;
+            padding: 0 0.25rem;
+        }
+        .char-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            user-select: none;
+        }
+        .char-card:hover {
+            transform: translateY(-8px) scale(1.15);
+        }
+        .char-card:active {
+            transform: scale(0.95);
+        }
+        .char-avatar-wrapper {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 3px solid #ec4899;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.6);
+            background: #1e293b;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .char-card:hover .char-avatar-wrapper {
+            border-color: #f59e0b;
+            box-shadow: 0 0 20px #f59e0b;
+        }
+        .char-avatar-wrapper svg {
+            width: 100%;
+            height: 100%;
+        }
+        .char-tag {
+            background: rgba(15, 23, 42, 0.95);
+            color: #f8fafc;
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+            margin-top: 4px;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        .char-pointer {
+            font-size: 1.4rem;
+            margin-top: -2px;
+            animation: pointBounce 1.2s infinite ease-in-out;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
+        }
+        @keyframes pointBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(6px); }
+        }
+
+        /* ---------- UPLOAD AREA ---------- */
+        .upload-zone {
+            border: 2px dashed rgba(168, 85, 247, 0.5);
+            border-radius: 16px;
+            padding: 3rem 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            background: rgba(15, 23, 42, 0.6);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .upload-zone:hover,
+        .upload-zone.drag-over {
+            border-color: #ec4899;
+            background: rgba(99, 102, 241, 0.15);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(236, 72, 153, 0.3);
+        }
+        .upload-zone .icon {
+            font-size: 3.5rem;
+            margin-bottom: 0.75rem;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        .upload-zone p {
+            color: var(--text-light);
+            font-size: 1.05rem;
+        }
+        .upload-zone .btn {
+            display: inline-block;
+            margin-top: 1.25rem;
+            background: var(--primary-grad);
+            color: #fff;
+            padding: 0.75rem 2.25rem;
+            border-radius: 999px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+            position: relative;
+            z-index: 5;
+        }
+        .upload-zone .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(236, 72, 153, 0.5);
+        }
+        #fileInput {
+            display: none;
+        }
+
+        /* ---------- DYNAMIC HERO POWER ATTACKS ---------- */
+        
+        /* 1. Spider-Man Web Shooting */
+        .web-splat {
+            position: absolute;
+            font-size: 3.5rem;
+            z-index: 21;
+            pointer-events: none;
+            animation: webFade 1.2s forwards;
+        }
+        @keyframes webFade {
+            0% { transform: scale(0.2); opacity: 1; }
+            50% { transform: scale(1.3); }
+            100% { transform: scale(1); opacity: 0; }
+        }
+
+        /* 2. Naruto Nine-Tails Fox (Kurama) */
+        .kurama-overlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle, rgba(239, 68, 68, 0.5) 0%, rgba(245, 158, 11, 0.25) 60%, transparent 100%);
+            border-radius: 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 5.5rem;
+            z-index: 15;
+            pointer-events: none;
+            animation: kuramaRoar 1.8s ease-out forwards;
+            border: 3px solid #ef4444;
+            box-shadow: 0 0 35px #ef4444;
+        }
+        @keyframes kuramaRoar {
+            0% { opacity: 0; transform: scale(0.5); }
+            30% { opacity: 1; transform: scale(1.1); }
+            80% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: scale(0.9); }
+        }
+
+        /* 3. Luffy Gear 5 Rubber Animation */
+        .rubber-luffy {
+            animation: rubberStretch 1.2s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards !important;
+            box-shadow: 0 0 30px #f8fafc, 0 0 50px #38bdf8 !important;
+            border-color: #fff !important;
+        }
+        @keyframes rubberStretch {
+            0% { transform: scale(1, 1); }
+            20% { transform: scale(1.3, 0.6); }
+            40% { transform: scale(0.7, 1.4); }
+            60% { transform: scale(1.15, 0.85); }
+            80% { transform: scale(0.95, 1.05); }
+            100% { transform: scale(1, 1); }
+        }
+
+        /* 4. Goku Kamehameha Beam */
+        .kamehameha-beam {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 80px;
+            height: 100%;
+            background: linear-gradient(180deg, #38bdf8, #60a5fa, #ffffff);
+            transform: translateX(-50%);
+            box-shadow: 0 0 40px #38bdf8, 0 0 80px #60a5fa, 0 0 100px #fff;
+            z-index: 25;
+            pointer-events: none;
+            border-radius: 40px;
+            animation: beamFire 1.2s ease-out forwards;
+        }
+        @keyframes beamFire {
+            0% { opacity: 0; width: 10px; }
+            30% { opacity: 1; width: 160px; }
+            70% { opacity: 1; width: 140px; }
+            100% { opacity: 0; width: 0px; }
+        }
+
+        /* 5. Deku 100% Crack & Punch */
+        .deku-lightning {
+            position: absolute;
+            inset: 0;
+            border-radius: 16px;
+            box-shadow: inset 0 0 30px #10b981, 0 0 40px #10b981;
+            z-index: 18;
+            pointer-events: none;
+            animation: dekuSparks 1s ease-out forwards;
+        }
+        .deku-crack-mark {
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(circle, transparent 40%, rgba(0,0,0,0.8) 90%),
+                              linear-gradient(45deg, transparent 48%, #10b981 49%, #10b981 51%, transparent 52%),
+                              linear-gradient(-45deg, transparent 48%, #10b981 49%, #10b981 51%, transparent 52%);
+            border-radius: 16px;
+            z-index: 19;
+            pointer-events: none;
+            animation: crackFade 2.5s forwards;
+        }
+        @keyframes dekuSparks {
+            0% { opacity: 0; transform: scale(0.95); }
+            20% { opacity: 1; transform: scale(1.02); }
+            100% { opacity: 0; transform: scale(1); }
+        }
+        @keyframes crackFade {
+            0% { opacity: 1; }
+            80% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        /* 6. Zoro Slash */
+        .zoro-slash {
+            position: absolute;
+            top: 50%;
+            left: -10%;
+            width: 120%;
+            height: 6px;
+            background: #10b981;
+            box-shadow: 0 0 20px #10b981, 0 0 30px #34d399, 0 0 40px #fff;
+            transform: translateY(-50%) rotate(-15deg) scaleX(0);
+            z-index: 22;
+            pointer-events: none;
+            animation: slashCut 0.5s ease-out forwards;
+        }
+        @keyframes slashCut {
+            0% { transform: translateY(-50%) rotate(-15deg) scaleX(0); opacity: 1; }
+            50% { transform: translateY(-50%) rotate(-15deg) scaleX(1); opacity: 1; }
+            100% { transform: translateY(-50%) rotate(-15deg) scaleX(1); opacity: 0; }
+        }
+
+        /* ---------- CAMERA BUTTONS ---------- */
+        .camera-row {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            margin-top: 1.25rem;
+            flex-wrap: wrap;
+        }
+        .camera-row button {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.6rem 1.5rem;
+            border-radius: 999px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+        }
+        .camera-row button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateY(-1px);
+        }
+        .camera-row button.danger {
+            color: #f87171;
+            border-color: rgba(248, 113, 113, 0.3);
+            background: rgba(239, 68, 68, 0.15);
+        }
+        .camera-row button.danger:hover {
+            background: rgba(239, 68, 68, 0.3);
+        }
+
+        /* ---------- PREVIEW ---------- */
+        .preview-wrap {
+            display: none;
+            margin-top: 1.5rem;
+            text-align: center;
+        }
+        .preview-wrap img,
+        .preview-wrap video {
+            max-width: 100%;
+            max-height: 360px;
+            border-radius: 16px;
+            border: 2px solid var(--border);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+        #video {
+            display: none;
+        }
+
+        /* ---------- ACTION BAR ---------- */
+        .action-bar {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 1.75rem;
+        }
+        .action-bar button {
+            padding: 0.75rem 2rem;
+            border-radius: 999px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+        .btn-primary {
+            background: var(--accent-grad);
+            color: #0f172a;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+        .btn-primary:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+        }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* ---------- RESULTS ---------- */
+        .results {
+            display: none;
+            margin-top: 2rem;
+            border-top: 1px solid var(--border);
+            padding-top: 1.75rem;
+            animation: fadeIn 0.4s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .results h2 {
+            font-size: 1.3rem;
+            margin-bottom: 0.85rem;
+            color: #f1f5f9;
+        }
+
+        .rating-box {
+            display: flex;
+            align-items: center;
+            gap: 1.25rem;
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(236, 72, 153, 0.2) 100%);
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            border-radius: 16px;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: inset 0 0 20px rgba(245, 158, 11, 0.1);
+        }
+        .rating-box .score {
+            font-size: 2.8rem;
+            font-weight: 800;
+            background: var(--accent-grad);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1;
+        }
+        .rating-box .label {
+            color: var(--text-light);
+            font-size: 0.9rem;
+            margin-top: 0.2rem;
+        }
+
+        /* ---------- MEME STYLES ---------- */
+        .meme-card {
+            display: none;
+            margin-bottom: 1.5rem;
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: center;
+            animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.85); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* ---------- LEBRON MEME (> 7.5 to 10) ---------- */
+        .meme-lebron {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #7c2d12 100%);
+            border: 2px solid #fef08a;
+            box-shadow: 0 0 35px rgba(245, 158, 11, 0.6);
+        }
+        .meme-lebron .sun-icon {
+            font-size: 4rem;
+            animation: spinSun 10s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spinSun {
+            100% { transform: rotate(360deg); }
+        }
+        .meme-lebron .headline {
+            font-size: 1.6rem;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 0 0 12px rgba(255, 255, 255, 0.8), 0 0 20px rgba(234, 179, 8, 0.9);
+            letter-spacing: 1px;
+            margin-top: 0.5rem;
+        }
+        .meme-lebron .subtext {
+            color: #fef3c7;
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-top: 0.4rem;
+        }
+
+        /* ---------- MID GOKU MEME (5.0 to 7.5) ---------- */
+        .meme-goku {
+            background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
+            border: 2px solid #f59e0b;
+            box-shadow: 0 0 25px rgba(245, 158, 11, 0.3);
+        }
+        .meme-goku .headline {
+            font-size: 1.8rem;
+            font-weight: 900;
+            color: #fbbf24;
+            text-shadow: 0 0 10px rgba(251, 191, 36, 0.8), 0 0 20px rgba(239, 68, 68, 0.6);
+            letter-spacing: 2px;
+            animation: pulseGlow 1.5s infinite alternate;
+        }
+        @keyframes pulseGlow {
+            from { text-shadow: 0 0 10px rgba(251, 191, 36, 0.8); }
+            to { text-shadow: 0 0 25px rgba(239, 68, 68, 1), 0 0 15px rgba(251, 191, 36, 1); }
+        }
+        .meme-goku p {
+            color: #e5e7eb;
+            font-weight: 600;
+            margin-top: 0.5rem;
+            font-size: 1rem;
+        }
+        .meme-goku .badge {
+            font-size: 3.5rem;
+            margin-top: 0.25rem;
+            display: inline-block;
+            animation: shake 0.5s ease-in-out infinite alternate;
+        }
+        @keyframes shake {
+            0% { transform: rotate(-3deg) scale(1); }
+            100% { transform: rotate(3deg) scale(1.1); }
+        }
+
+        /* ---------- CHINESE FARM LADY MEME (< 5.0) ---------- */
+        .meme-chinese {
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 50%, #0f172a 100%);
+            border: 2px solid #38bdf8;
+            box-shadow: 0 0 30px rgba(56, 189, 248, 0.5);
+        }
+        .meme-chinese .snowflake {
+            font-size: 3.5rem;
+            display: inline-block;
+            animation: floatSnow 2s infinite ease-in-out alternate;
+        }
+        @keyframes floatSnow {
+            0% { transform: translateY(0) rotate(0deg); }
+            100% { transform: translateY(-10px) rotate(15deg); }
+        }
+        .meme-chinese .headline {
+            font-size: 1.6rem;
+            font-weight: 900;
+            color: #e0f2fe;
+            text-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+            margin-top: 0.5rem;
+        }
+        .meme-chinese .pinyin {
+            font-size: 1.1rem;
+            font-style: italic;
+            color: #bae6fd;
+            margin-top: 0.25rem;
+            font-weight: 600;
+        }
+        .meme-chinese .subtext {
+            color: #f0f9ff;
+            margin-top: 0.5rem;
+            font-size: 0.95rem;
+        }
+        .audio-player {
+            margin-top: 1rem;
+            width: 100%;
+            max-width: 320px;
+            border-radius: 999px;
+            outline: none;
+        }
+
+        .ocr-text {
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 12px;
+            padding: 1.25rem;
+            font-size: 1.05rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+            min-height: 90px;
+            border: 1px solid var(--border);
+            color: #e2e8f0;
+        }
+        .ocr-text.skipped {
+            color: #93c5fd;
+            font-style: italic;
+            border-color: rgba(56, 189, 248, 0.4);
+        }
+
+        .save-bar {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        .save-bar button {
+            padding: 0.6rem 1.4rem;
+            border-radius: 999px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .save-bar button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+        .save-bar button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .save-bar button:disabled:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        /* ---------- SAVED ITEMS ---------- */
+        .saved-section {
+            margin-top: 2rem;
+            display: none;
+        }
+        .saved-section h3 {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 1.1rem;
+            color: var(--text-light);
+            margin-bottom: 1rem;
+        }
+        .saved-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .saved-item {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 0.85rem 1.2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            transition: border-color 0.2s;
+        }
+        .saved-item:hover {
+            border-color: rgba(168, 85, 247, 0.5);
+        }
+        .saved-item .text {
+            flex: 1;
+            font-size: 0.95rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #cbd5e1;
+        }
+        .saved-item .meta {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            white-space: nowrap;
+        }
+        .saved-item button {
+            background: none;
+            border: none;
+            color: #f87171;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0 0.25rem;
+            transition: opacity 0.2s;
+        }
+        .saved-item button:hover {
+            opacity: 0.7;
+        }
+        .clear-all {
+            background: transparent;
+            border: none;
+            color: #f87171;
+            font-size: 0.85rem;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        /* ---------- SPINNER ---------- */
+        .spinner {
+            display: none;
+            margin: 1.5rem auto;
+            width: 42px;
+            height: 42px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #ec4899;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ---------- RESPONSIVE ---------- */
+        @media (max-width: 600px) {
+            .char-avatar-wrapper {
+                width: 48px;
+                height: 48px;
+            }
+            .char-tag {
+                font-size: 0.6rem;
+            }
+            .card {
+                padding: 1.5rem;
+            }
+            h1 {
+                font-size: 1.8rem;
+            }
+            .rating-box .score {
+                font-size: 2.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>✍️ Handwriting Lab <span>OCR</span></h1>
+    <p class="subtitle">Click on any hero below to test their superpower on the upload taskbar!</p>
+
+    <div class="card">
+
+        <!-- ======== CHARACTER SQUAD (RELIABLE INLINE AVATARS & POWER ATTACKS) ======== -->
+        <div class="character-squad">
+            <!-- Spider-Man -->
+            <div class="char-card" id="charSpidey" title="Click for Web Attack!">
+                <div class="char-avatar-wrapper">
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="50" fill="#dc2626"/>
+                        <ellipse cx="35" cy="45" rx="14" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="3" transform="rotate(-15 35 45)"/>
+                        <ellipse cx="65" cy="45" rx="14" ry="8" fill="#ffffff" stroke="#0f172a" stroke-width="3" transform="rotate(15 65 45)"/>
+                        <path d="M50 20 L50 80 M20 50 L80 50 M28 28 L72 72 M28 72 L72 28" stroke="rgba(0,0,0,0.3)" stroke-width="2"/>
+                    </svg>
+                </div>
+                <span class="char-tag">Spider-Man</span>
+                <span class="char-pointer">👇</span>
+            </div>
+
+            <!-- Naruto -->
+            <div class="char-card" id="charNaruto" title="Click to summon Nine-Tails Fox!">
+                <div class="char-avatar-wrapper">
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="50" fill="#f97316"/>
+                        <rect x="20" y="30" width="60" height="20" rx="4" fill="#94a3b8" stroke="#475569" stroke-width="2"/>
+                        <circle cx="50" cy="40" r="6" fill="none" stroke="#1e293b" stroke-width="2"/>
+                        <path d="M50 34 L56 46 L44 46 Z" fill="#1e293b"/>
+                        <circle cx="35" cy="65" r="4" fill="#38bdf8"/>
+                        <circle cx="65" cy="65" r="4" fill="#38bdf8"/>
+                    </svg>
+                </div>
+                <span class="char-tag">Naruto</span>
+                <span class="char-pointer">👇</span>
+            </div>
+
+            <!-- Luffy -->
+            <div class="char-card" id="charLuffy" title="Click for Gear 5 Rubber Elasticity!">
+                <div class="char-avatar-wrapper">
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="50" fill="#fef08a"/>
+                        <path d="M10 50 Q50 30 90 50 Q50 85 10 50 Z" fill="#eab308" stroke="#ca8a04" stroke-width="2"/>
+                        <rect x="25" y="45" width="50" height="8" fill="#dc2626"/>
+                        <circle cx="50" cy="35" r="15" fill="#fef08a"/>
+                    </svg>
+                </div>
+                <span class="char-tag">Luffy</span>
+                <span class="char-pointer">👇</span>
+            </div>
+
+            <!-- Zoro -->
+            <div class="char-card" id="charZoro" title="Click for Oni Giri Slash!">
+                <div class="char-avatar-wrapper">
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="50" fill="#15803d"/>
+                        <path d="M20 40 Q50 15 80 40" fill="none" stroke="#166534" stroke-width="12"/>
+                        <path d="M20 42 L80 42" stroke="#0f172a" stroke-width="6"/>
+                        <line x1="30" y1="60" x2="45" y2="60" stroke="#0f172a" stroke-width="3"/>
+                        <line x1="55" y1="60" x2="70" y2="60" stroke="#0f172a" stroke-width="3"/>
+                    </svg>
+                </div>
+                <span class="char-tag">Zoro</span>
+                <span class="char-pointer">👇</span>
+            </div>
+
+            <!-- Goku -->
+            <div class="char-card" id="charGoku" title="Click to fire Kamehameha!">
+                <div class="char-avatar-wrapper">
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="50" fill="#ea580c"/>
+                        <path d="M20 50 L35 15 L50 40 L65 15 L80 50 Z" fill="#eab308" stroke="#ca8a04" stroke-width="2"/>
+                        <circle cx="50" cy="65" r="18" fill="#ffedd5"/>
+                        <circle cx="42" cy="62" r="3" fill="#0f172a"/>
+                        <circle cx="58" cy="62" r="3" fill="#0f172a"/>
+                    </svg>
+                </div>
+                <span class="char-tag">Goku</span>
+                <span class="char-pointer">👇</span>
+            </div>
+
+            <!-- Deku -->
+            <div class="char-card" id="charDeku" title="Click for 100% One For All Smash!">
+                <div class="char-avatar-wrapper">
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="50" fill="#065f46"/>
+                        <path d="M25 45 Q50 20 75 45 Q50 65 25 45 Z" fill="#10b981"/>
+                        <circle cx="38" cy="55" r="4" fill="#38bdf8"/>
+                        <circle cx="62" cy="55" r="4" fill="#38bdf8"/>
+                        <path d="M20 30 L35 15 M80 30 L65 15" stroke="#34d399" stroke-width="3"/>
+                    </svg>
+                </div>
+                <span class="char-tag">Deku</span>
+                <span class="char-pointer">👇</span>
+            </div>
+        </div>
+
+        <!-- ======== UPLOAD ZONE ======== -->
+        <div class="upload-zone" id="uploadZone">
+            <div class="icon">✨</div>
+            <p>Drag &amp; drop an image here, or click to browse</p>
+            <button class="btn" id="browseBtn">Choose Image</button>
+            <input type="file" id="fileInput" accept="image/*" />
+
+            <div class="camera-row">
+                <button id="cameraBtn">📷 Open Camera</button>
+                <button id="captureBtn" style="display:none;">Capture Photo</button>
+                <button id="closeCamBtn" class="danger" style="display:none;">✕ Close Camera</button>
+            </div>
+        </div>
+
+        <!-- ======== PREVIEW ======== -->
+        <div class="preview-wrap" id="previewWrap">
+            <img id="previewImg" alt="Preview" />
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas" style="display:none;"></canvas>
+        </div>
+
+        <!-- ======== ACTION BAR ======== -->
+        <div class="action-bar" id="actionBar" style="display:none;">
+            <button class="btn-primary" id="analyzeBtn">🔍 Analyze &amp; Extract</button>
+            <button class="btn-secondary" id="resetBtn">🔄 Reset</button>
+        </div>
+
+        <div class="spinner" id="spinner"></div>
+
+        <!-- ======== RESULTS ======== -->
+        <div class="results" id="results">
+            <h2>📊 Results</h2>
+
+            <div class="rating-box">
+                <span class="score" id="ratingScore">—</span>
+                <div>
+                    <div id="ratingLabel" style="font-weight:700; font-size:1.1rem; color:#fff;">Handwriting Rating</div>
+                    <div class="label" id="ratingDetail">Analyzing…</div>
+                </div>
+            </div>
+
+            <!-- MEME 1: LEBRON SUNSHINE (> 7.5 to 10) -->
+            <div class="meme-card meme-lebron" id="memeLebron">
+                <div class="sun-icon">☀️</div>
+                <div class="headline">"YOU ARE MY SUNSHINE... MY ONLY SUNSHINE! 👑"</div>
+                <div class="subtext">LeBron James is in awe! Absolute handwriting perfection! 🔥🏀</div>
+            </div>
+
+            <!-- MEME 2: MID GOKU (5.0 to 7.5) -->
+            <div class="meme-card meme-goku" id="memeGoku">
+                <div class="badge">🗣️🔥</div>
+                <div class="headline">"MIDDDDDDD!!!"</div>
+                <p>Son Goku declared your handwriting completely MID! 💥</p>
+            </div>
+
+            <!-- MEME 3: CHINESE FARM LADY MEME (< 5.0) -->
+            <div class="meme-card meme-chinese" id="memeChinese">
+                <div class="snowflake">❄️👩‍🌾</div>
+                <div class="headline">雪花飄飄 北風蕭蕭...</div>
+                <div class="pinyin">"Xue hua piao piao bei feng xiao xiao..."</div>
+                <div class="subtext">The famous Chinese farm lady (Yi Yi) is singing for your handwriting! 🎋</div>
+                <audio id="chineseAudio" class="audio-player" controls loop>
+                    <source src="https://upload.wikimedia.org/wikipedia/commons/2/23/Erhu_sample.ogg" type="audio/ogg">
+                    Your browser does not support the audio element.
+                </audio>
+            </div>
+
+            <h2 style="margin-top:1rem;">📝 Extracted Text</h2>
+            <div class="ocr-text" id="ocrText">Waiting for analysis…</div>
+
+            <div class="save-bar">
+                <button id="saveBtn">💾 Save to temporary storage</button>
+                <button id="copyBtn">📋 Copy to clipboard</button>
+            </div>
+        </div>
+
+        <!-- ======== SAVED ITEMS ======== -->
+        <div class="saved-section" id="savedSection">
+            <h3>
+                <span>🗂️ Saved Texts</span>
+                <button class="clear-all" id="clearAllBtn">Clear all</button>
+            </h3>
+            <div class="saved-list" id="savedList"></div>
+        </div>
+
+    </div>
+
+    <script>
+        // =============================================================
+        //  STATE
+        // =============================================================
+        const state = {
+            currentImageData: null,
+            currentText: '',
+            savedItems: [],
+            stream: null,
+        };
+
+        // Reusable Tesseract worker (created lazily, kept alive between analyses)
+        let ocrWorker = null;
+        async function getWorker() {
+            if (!ocrWorker) {
+                ocrWorker = await Tesseract.createWorker('eng');
+                // PSM 6 = "Assume a single uniform block of text".
+                // This is far more reliable than the default auto-segmentation
+                // mode for photos of notes/paragraphs, which was the main cause
+                // of garbled / random-looking output.
+                await ocrWorker.setParameters({
+                    tessedit_pageseg_mode: '6',
+                    preserve_interword_spaces: '1',
+                });
+            }
+            return ocrWorker;
+        }
+
+        function loadSaved() {
+            try {
+                const raw = sessionStorage.getItem('handwriting_saved');
+                if (raw) state.savedItems = JSON.parse(raw);
+            } catch { state.savedItems = []; }
+            renderSaved();
+        }
+
+        function persistSaved() {
+            sessionStorage.setItem('handwriting_saved', JSON.stringify(state.savedItems));
+            renderSaved();
+        }
+
+        // =============================================================
+        //  DOM REFS
+        // =============================================================
+        const $ = (id) => document.getElementById(id);
+        const uploadZone = $('uploadZone');
+        const fileInput = $('fileInput');
+        const browseBtn = $('browseBtn');
+        const cameraBtn = $('cameraBtn');
+        const captureBtn = $('captureBtn');
+        const closeCamBtn = $('closeCamBtn');
+        const previewWrap = $('previewWrap');
+        const previewImg = $('previewImg');
+        const video = $('video');
+        const canvas = $('canvas');
+        const actionBar = $('actionBar');
+        const analyzeBtn = $('analyzeBtn');
+        const resetBtn = $('resetBtn');
+        const spinner = $('spinner');
+        const results = $('results');
+        const ratingScore = $('ratingScore');
+        const ratingLabel = $('ratingLabel');
+        const ratingDetail = $('ratingDetail');
+
+        // Memes & Audio
+        const memeLebron = $('memeLebron');
+        const memeGoku = $('memeGoku');
+        const memeChinese = $('memeChinese');
+        const chineseAudio = $('chineseAudio');
+
+        const ocrText = $('ocrText');
+        const saveBtn = $('saveBtn');
+        const copyBtn = $('copyBtn');
+        const savedSection = $('savedSection');
+        const savedList = $('savedList');
+        const clearAllBtn = $('clearAllBtn');
+
+        // =============================================================
+        //  INTERACTIVE HERO POWER ATTACKS
+        // =============================================================
+
+        // 1. Spider-Man Web Attack
+        $('charSpidey').addEventListener('click', () => {
+            const splat = document.createElement('div');
+            splat.className = 'web-splat';
+            splat.textContent = '🕸️';
+            splat.style.left = (30 + Math.random() * 40) + '%';
+            splat.style.top = (20 + Math.random() * 40) + '%';
+            uploadZone.appendChild(splat);
+
+            setTimeout(() => splat.remove(), 1200);
+        });
+
+        // 2. Naruto Nine-Tails Fox (Kurama)
+        $('charNaruto').addEventListener('click', () => {
+            const old = uploadZone.querySelector('.kurama-overlay');
+            if (old) old.remove();
+
+            const kurama = document.createElement('div');
+            kurama.className = 'kurama-overlay';
+            kurama.innerHTML = '🦊🔥';
+            uploadZone.appendChild(kurama);
+
+            setTimeout(() => kurama.remove(), 1800);
+        });
+
+        // 3. Luffy Gear 5 Rubber Stretch
+        $('charLuffy').addEventListener('click', () => {
+            uploadZone.classList.remove('rubber-luffy');
+            void uploadZone.offsetWidth;
+            uploadZone.classList.add('rubber-luffy');
+
+            setTimeout(() => uploadZone.classList.remove('rubber-luffy'), 1200);
+        });
+
+        // 4. Goku Super Saiyan Kamehameha
+        $('charGoku').addEventListener('click', () => {
+            const beam = document.createElement('div');
+            beam.className = 'kamehameha-beam';
+            uploadZone.appendChild(beam);
+
+            setTimeout(() => beam.remove(), 1200);
+        });
+
+        // 5. Deku 100% One For All Punch & Glass Crack
+        $('charDeku').addEventListener('click', () => {
+            const lightning = document.createElement('div');
+            lightning.className = 'deku-lightning';
+            uploadZone.appendChild(lightning);
+
+            const crack = document.createElement('div');
+            crack.className = 'deku-crack-mark';
+            uploadZone.appendChild(crack);
+
+            setTimeout(() => lightning.remove(), 1000);
+            setTimeout(() => crack.remove(), 2500);
+        });
+
+        // 6. Zoro Sword Slash
+        $('charZoro').addEventListener('click', () => {
+            const slash = document.createElement('div');
+            slash.className = 'zoro-slash';
+            uploadZone.appendChild(slash);
+
+            setTimeout(() => slash.remove(), 500);
+        });
+
+        // =============================================================
+        //  HELPERS
+        // =============================================================
+        function hideAllMemes() {
+            memeLebron.style.display = 'none';
+            memeGoku.style.display = 'none';
+            memeChinese.style.display = 'none';
+            if (chineseAudio) {
+                chineseAudio.pause();
+                chineseAudio.currentTime = 0;
+            }
+        }
+
+        function showPreview(src) {
+            previewImg.src = src;
+            previewImg.style.display = 'block';
+            video.style.display = 'none';
+            previewWrap.style.display = 'block';
+            actionBar.style.display = 'flex';
+            results.style.display = 'none';
+            hideAllMemes();
+        }
+
+        function hidePreview() {
+            previewWrap.style.display = 'none';
+            actionBar.style.display = 'none';
+            previewImg.src = '';
+            state.currentImageData = null;
+            state.currentText = '';
+        }
+
+        function resetAll() {
+            hidePreview();
+            closeCamera();
+            results.style.display = 'none';
+            hideAllMemes();
+            spinner.style.display = 'none';
+            fileInput.value = '';
+            analyzeBtn.disabled = false;
+        }
+
+        // =============================================================
+        //  FILE UPLOAD
+        // =============================================================
+        browseBtn.addEventListener('click', () => fileInput.click());
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('drag-over');
+        });
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('drag-over');
+        });
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) handleFile(file);
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files[0]) handleFile(fileInput.files[0]);
+        });
+
+        function handleFile(file) {
+            closeCamera();
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                showPreview(e.target.result);
+                const img = new Image();
+                img.onload = () => {
+                    const c = document.createElement('canvas');
+                    c.width = img.width;
+                    c.height = img.height;
+                    const ctx = c.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    state.currentImageData = ctx.getImageData(0, 0, c.width, c.height);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // =============================================================
+        //  CAMERA
+        // =============================================================
+        async function openCamera() {
+            try {
+                state.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                video.srcObject = state.stream;
+                video.style.display = 'block';
+                previewImg.style.display = 'none';
+                previewWrap.style.display = 'block';
+                actionBar.style.display = 'flex';
+                captureBtn.style.display = 'inline-block';
+                closeCamBtn.style.display = 'inline-block';
+                cameraBtn.textContent = '📷 Switch Camera';
+            } catch (err) {
+                alert('Camera access denied or unavailable.');
+            }
+        }
+
+        function closeCamera() {
+            if (state.stream) {
+                state.stream.getTracks().forEach(t => t.stop());
+                state.stream = null;
+            }
+            video.style.display = 'none';
+            captureBtn.style.display = 'none';
+            closeCamBtn.style.display = 'none';
+            cameraBtn.textContent = '📷 Open Camera';
+        }
+
+        cameraBtn.addEventListener('click', () => {
+            if (state.stream) {
+                closeCamera();
+                previewWrap.style.display = 'none';
+                actionBar.style.display = 'none';
+            } else {
+                openCamera();
+            }
+        });
+
+        closeCamBtn.addEventListener('click', () => {
+            closeCamera();
+            if (!previewImg.src) {
+                previewWrap.style.display = 'none';
+                actionBar.style.display = 'none';
+            }
+        });
+
+        captureBtn.addEventListener('click', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+            const dataUrl = canvas.toDataURL('image/png');
+            state.currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            showPreview(dataUrl);
+        });
+
+        // =============================================================
+        //  RESET
+        // =============================================================
+        resetBtn.addEventListener('click', resetAll);
+
+        // =============================================================
+        //  IMAGE PREPROCESSING (fixes garbled / "random" OCR output)
+        //  - Upscales small photos (OCR engines do much better on larger text)
+        //  - Converts to grayscale
+        //  - Binarizes (black text / white background) using an adaptive-ish
+        //    threshold based on the image's own average brightness
+        //  This gives Tesseract a clean, high-contrast image instead of a
+        //  raw photo with shadows/glare/color noise, which is the #1 cause
+        //  of OCR hallucinating random characters.
+        // =============================================================
+        function preprocessImageForOCR(imageSrc) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    try {
+                        // Upscale smaller images; OCR accuracy drops sharply below ~1000px wide
+                        const targetWidth = 1600;
+                        const scale = img.width < targetWidth ? (targetWidth / img.width) : 1;
+                        const w = Math.round(img.width * scale);
+                        const h = Math.round(img.height * scale);
+
+                        const c = document.createElement('canvas');
+                        c.width = w;
+                        c.height = h;
+                        const ctx = c.getContext('2d');
+                        ctx.imageSmoothingEnabled = true;
+                        ctx.imageSmoothingQuality = 'high';
+                        ctx.drawImage(img, 0, 0, w, h);
+
+                        const imageData = ctx.getImageData(0, 0, w, h);
+                        const data = imageData.data;
+                        const pixelCount = data.length / 4;
+
+                        // Pass 1: grayscale + running average brightness
+                        const gray = new Float32Array(pixelCount);
+                        let sum = 0;
+                        for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+                            const g = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                            gray[p] = g;
+                            sum += g;
+                        }
+                        const avgBrightness = sum / pixelCount;
+
+                        // Adaptive-ish threshold: slightly below the image average,
+                        // so normal handwriting-on-paper photos binarize cleanly
+                        // even with mild shadows or off-white paper.
+                        const threshold = avgBrightness * 0.82;
+
+                        // Pass 2: binarize (with light contrast stretch fallback
+                        // for pixels near the threshold, to avoid destroying thin strokes)
+                        for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+                            const val = gray[p] < threshold ? 0 : 255;
+                            data[i] = data[i + 1] = data[i + 2] = val;
+                        }
+
+                        ctx.putImageData(imageData, 0, 0);
+                        resolve(c.toDataURL('image/png'));
+                    } catch (err) {
+                        reject(err);
+                    }
+                };
+                img.onerror = reject;
+                img.src = imageSrc;
+            });
+        }
+
+        // =============================================================
+        //  ACCURATE MULTI-FACTOR HANDWRITING RATING ENGINE
+        // =============================================================
+        function evaluateHandwriting(ocrResult, imageData) {
+            // Factor 1: OCR Confidence Score (0 to 10)
+            const ocrConfidence = (ocrResult.data && typeof ocrResult.data.confidence === 'number')
+                ? (ocrResult.data.confidence / 10)
+                : 5.0;
+
+            // Factor 2: Text Length & Word Structure
+            const text = ocrResult.data ? ocrResult.data.text.trim() : '';
+            const words = text ? text.split(/\s+/).filter(w => w.length > 0) : [];
+            let textScore = 5.0;
+            if (words.length > 10) textScore = 9.0;
+            else if (words.length > 4) textScore = 7.5;
+            else if (words.length > 0) textScore = 6.0;
+            else textScore = 2.0;
+
+            // Factor 3: Stroke Sharpness / Edge Gradient Variance
+            let edgeScore = 6.0;
+            if (imageData) {
+                const data = imageData.data;
+                const w = imageData.width;
+                const h = imageData.height;
+                let edgeSum = 0;
+                let count = 0;
+
+                // Sample pixel edge differences (gradient)
+                for (let y = 1; y < h - 1; y += 4) {
+                    for (let x = 1; x < w - 1; x += 4) {
+                        const idx = (y * w + x) * 4;
+                        const right = ((y * w + (x + 1))) * 4;
+                        const grayCurrent = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+                        const grayRight = 0.299 * data[right] + 0.587 * data[right + 1] + 0.114 * data[right + 2];
+                        edgeSum += Math.abs(grayCurrent - grayRight);
+                        count++;
+                    }
+                }
+                const avgEdge = count > 0 ? (edgeSum / count) : 0;
+                edgeScore = Math.min(10, Math.max(2, (avgEdge / 12) * 10));
+            }
+
+            // Weighted combination
+            let finalScore = (ocrConfidence * 0.55) + (textScore * 0.25) + (edgeScore * 0.20);
+            finalScore = Math.min(10, Math.max(1, Math.round(finalScore * 10) / 10));
+
+            let label, detail;
+            if (finalScore > 7.5) {
+                label = '👑 GOAT Level';
+                detail = 'Very neat, crisp, and easily legible handwriting!';
+            } else if (finalScore >= 5.0) {
+                label = '📝 Decent / Mid';
+                detail = 'Readable handwriting with average clarity.';
+            } else {
+                label = '❄️ Snowing Hard';
+                detail = 'Too messy or unclear to reliably extract text. Try clearer lighting or neater writing!';
+            }
+
+            return { score: finalScore, label, detail };
+        }
+
+        // =============================================================
+        //  ANALYSIS (OCR + Rating + Dynamic Memes)
+        // =============================================================
+        analyzeBtn.addEventListener('click', async () => {
+            if (!previewImg.src && !state.currentImageData) return;
+
+            analyzeBtn.disabled = true;
+            spinner.style.display = 'block';
+            results.style.display = 'none';
+            hideAllMemes();
+            saveBtn.disabled = false;
+            copyBtn.disabled = false;
+
+            const imageSource = previewImg.src;
+
+            try {
+                // Clean up the photo before handing it to Tesseract — this is
+                // what fixes the "random text and numbers" problem, which was
+                // caused by OCR running on a raw, low-contrast camera photo.
+                const cleanedImage = await preprocessImageForOCR(imageSource);
+
+                const worker = await getWorker();
+                const result = await worker.recognize(cleanedImage);
+
+                const text = result.data.text.trim() || '(No text detected)';
+
+                // Calculate score first (rating still needs OCR confidence/edge
+                // data internally), THEN decide whether to reveal the text.
+                const rating = evaluateHandwriting(result, state.currentImageData);
+                const numericScore = parseFloat(rating.score);
+
+                ratingScore.textContent = rating.score;
+                ratingLabel.textContent = rating.label;
+                ratingDetail.textContent = rating.detail;
+
+                if (!isNaN(numericScore) && numericScore < 5.0) {
+                    // Rating too low — do NOT extract/show text
+                    state.currentText = '';
+                    ocrText.textContent = "⚠️ Handwriting quality too low to reliably extract text. No text was extracted for this image.";
+                    ocrText.classList.add('skipped');
+                    saveBtn.disabled = true;
+                    copyBtn.disabled = true;
+                } else {
+                    state.currentText = text;
+                    ocrText.textContent = text;
+                    ocrText.classList.remove('skipped');
+                    saveBtn.disabled = false;
+                    copyBtn.disabled = false;
+                }
+
+                // --- MEME ROUTING LOGIC ---
+                if (!isNaN(numericScore)) {
+                    if (numericScore > 7.5) {
+                        // 1. LEBRON SUNSHINE MEME (> 7.5 to 10)
+                        memeLebron.style.display = 'block';
+                    } else if (numericScore >= 5.0) {
+                        // 2. SON GOKU MID MEME (5.0 to 7.5)
+                        memeGoku.style.display = 'block';
+                    } else {
+                        // 3. CHINESE FARM LADY MEME (< 5.0)
+                        memeChinese.style.display = 'block';
+                        chineseAudio.play().catch(() => {
+                            console.log('Autoplay blocked by browser. Click play on the audio player.');
+                        });
+                    }
+                }
+
+                results.style.display = 'block';
+
+            } catch (err) {
+                alert('Analysis failed. Please try again.');
+                console.error(err);
+            } finally {
+                spinner.style.display = 'none';
+                analyzeBtn.disabled = false;
+            }
+        });
+
+        // =============================================================
+        //  SAVE / COPY
+        // =============================================================
+        saveBtn.addEventListener('click', () => {
+            const text = state.currentText.trim();
+            if (!text) return alert('No text to save.');
+            const item = {
+                id: Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+                text: text,
+                timestamp: new Date().toLocaleString(),
+            };
+            state.savedItems.unshift(item);
+            persistSaved();
+            savedSection.style.display = 'block';
+        });
+
+        copyBtn.addEventListener('click', () => {
+            const text = state.currentText.trim();
+            if (!text) return alert('No text to copy.');
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Text copied to clipboard!');
+            });
+        });
+
+        // =============================================================
+        //  SAVED ITEMS RENDER
+        // =============================================================
+        function renderSaved() {
+            const container = savedList;
+            container.innerHTML = '';
+            if (state.savedItems.length === 0) {
+                savedSection.style.display = 'none';
+                return;
+            }
+            savedSection.style.display = 'block';
+            state.savedItems.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'saved-item';
+                div.innerHTML = `
+                    <span class="text">${escapeHtml(item.text)}</span>
+                    <span class="meta">${item.timestamp}</span>
+                    <button data-id="${item.id}" title="Delete">✕</button>
+                `;
+                container.appendChild(div);
+            });
+
+            container.querySelectorAll('button[data-id]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.dataset.id;
+                    state.savedItems = state.savedItems.filter(i => i.id !== id);
+                    persistSaved();
+                });
+            });
+        }
+
+        clearAllBtn.addEventListener('click', () => {
+            state.savedItems = [];
+            persistSaved();
+        });
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // =============================================================
+        //  INIT
+        // =============================================================
+        loadSaved();
+    </script>
+</body>
+</html>
